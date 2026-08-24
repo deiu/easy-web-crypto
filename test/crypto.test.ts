@@ -1,4 +1,4 @@
-import { describe, it, expect, assert } from 'vitest';
+import { describe, it, expect, assert, vi } from 'vitest';
 import * as WebCrypto from '../src/web-crypto';
 
 describe('Web crypto', function () {
@@ -552,6 +552,97 @@ describe('Web crypto', function () {
       assert.notStrictEqual(protectedMK1.derivationParams.salt, protectedMK2.derivationParams.salt);
       assert.notStrictEqual(protectedMK1.encryptedMasterKey.iv, protectedMK2.encryptedMasterKey.iv);
       assert.notStrictEqual(protectedMK1.encryptedMasterKey.ciphertext, protectedMK2.encryptedMasterKey.ciphertext);
+    });
+  });
+
+  describe('Decryption failures', () => {
+    const getKey = () => WebCrypto.genAESKey();
+
+    it('Should map the browser authentication failure to a stable message', async () => {
+      const key = await getKey();
+      const spy = vi.spyOn(globalThis.crypto.subtle, 'decrypt').mockRejectedValue(
+        new Error('Unsupported state or unable to authenticate data')
+      );
+      try {
+        await expect(
+          WebCrypto.decryptBuffer(key, new Uint8Array([1, 2, 3]), { name: 'AES-GCM' })
+        ).rejects.toThrow('Unable to decrypt data');
+      } finally {
+        spy.mockRestore();
+      }
+    });
+
+    it('Should wrap a thrown string in an Error', async () => {
+      const key = await getKey();
+      const spy = vi.spyOn(globalThis.crypto.subtle, 'decrypt').mockImplementation(() => {
+        return Promise.reject('some legacy failure');
+      });
+      try {
+        await expect(
+          WebCrypto.decryptBuffer(key, new Uint8Array([1, 2, 3]), { name: 'AES-GCM' })
+        ).rejects.toThrow('some legacy failure');
+      } finally {
+        spy.mockRestore();
+      }
+    });
+
+    it('Should resolve undefined when the failure is of an unrecognised shape', async () => {
+      // Documents current behaviour: decryptBuffer swallows anything that is
+      // neither the known message nor a string. decrypt() turns that undefined
+      // into a proper error, so no caller of decrypt() ever sees it.
+      const key = await getKey();
+      const spy = vi.spyOn(globalThis.crypto.subtle, 'decrypt').mockRejectedValue({ code: 42 });
+      try {
+        const out = await WebCrypto.decryptBuffer(key, new Uint8Array([1, 2, 3]), { name: 'AES-GCM' });
+        assert.isUndefined(out);
+      } finally {
+        spy.mockRestore();
+      }
+    });
+
+    it('Should refuse to decrypt with the wrong key', async () => {
+      const good = await getKey();
+      const wrong = await getKey();
+      const enc = await WebCrypto.encrypt(good, { hello: 'world' });
+
+      let err: any;
+      try {
+        await WebCrypto.decrypt(wrong, enc);
+      } catch (error) {
+        err = error;
+      }
+      assert.equal(err.message, 'Unable to decrypt data');
+    });
+
+    it('Should refuse to decrypt a tampered ciphertext', async () => {
+      const key = await getKey();
+      const enc = await WebCrypto.encrypt(key, { hello: 'world' });
+      // flip the last byte of the ciphertext, which invalidates the GCM tag
+      const bytes = Buffer.from(enc.ciphertext, 'hex');
+      bytes[bytes.length - 1] ^= 0xff;
+      const tampered = { ...enc, ciphertext: bytes.toString('hex') };
+
+      let err: any;
+      try {
+        await WebCrypto.decrypt(key, tampered);
+      } catch (error) {
+        err = error;
+      }
+      assert.equal(err.message, 'Unable to decrypt data');
+    });
+
+    it('Should refuse to decrypt with the wrong iv', async () => {
+      const key = await getKey();
+      const enc = await WebCrypto.encrypt(key, { hello: 'world' });
+      const wrongIv = { ...enc, iv: WebCrypto._genRandomBufferAsStr(16, 'hex') };
+
+      let err: any;
+      try {
+        await WebCrypto.decrypt(key, wrongIv);
+      } catch (error) {
+        err = error;
+      }
+      assert.equal(err.message, 'Unable to decrypt data');
     });
   });
 });
