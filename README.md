@@ -10,61 +10,65 @@ Huge thanks to @Jopie64 for Typescriptifying the source!
 
 ## Upgrading from 1.4.0
 
-One change needs you to act. The rest is additive.
+One change needs your attention. The other changes only add to the API.
 
-### Breaking: the `<script>` tag bundle moved
+### Breaking: the script tag bundle moved
 
-The build moved from webpack to tsup, and with it the browser bundle.
-`dist/cjs/web-crypto.js` used to be a UMD bundle that set a `WebCrypto` global.
-It is now plain CommonJS and fails in a `<script>` tag. The browser bundle is
-`dist/easy-web-crypto.global.js`, and it still sets `globalThis.WebCrypto`.
+`dist/cjs/web-crypto.js` was a UMD bundle. It set a `WebCrypto` global. After the
+move to tsup it is plain CommonJS, and it fails in a `<script>` tag.
+
+Use `dist/easy-web-crypto.global.js`. It sets `globalThis.WebCrypto`.
 
 ```diff
 - <script src="https://cdn.jsdelivr.net/npm/easy-web-crypto/dist/cjs/web-crypto.js"></script>
 + <script src="https://cdn.jsdelivr.net/npm/easy-web-crypto/dist/easy-web-crypto.global.js"></script>
 ```
 
-A page that pins a version keeps working. A page on a floating version needs
-the new path.
+A page that pins a version continues to work. Only a page on a floating version
+needs the new path.
 
-Importing through npm is unaffected. `import`, `require` and the
+npm users are not affected. `import`, `require`, and the
 `easy-web-crypto/cjs/web-crypto` and `easy-web-crypto/esm/web-crypto` subpaths
-all still resolve.
+all work as before.
 
-### Not breaking: the types accept more than they did
+### Not breaking: the types accept more
 
-The published types were narrower than the runtime, and the tests proved it.
-Code that compiled against 1.4.0 still compiles.
+The published types were more narrow than the run time behaviour. Code that
+compiled against 1.4.0 still compiles.
 
-- `verify` takes a `Uint8Array` signature, which is what `sign(..., 'raw')`
-  returns. Before, only a `string` typechecked.
-- `importKey` and `exportKey` take `'jwk'`. Both accepted it at runtime and both
-  document `raw|jwk`, but the type rejected it.
-- `exportKey` gives a precise type per format instead of one union for all of
-  them: `Uint8Array<ArrayBuffer>` for `raw`, `JsonWebKey` for `jwk`,
-  `ArrayBuffer` for the rest.
-- Three calls that used to typecheck and then throw are now compile errors: a
-  string signature with a `raw` format, a `JsonWebKey` without `type: 'jwk'`,
-  and `exportKey<'jwk'>` with the argument left out.
-
-`Parameters<>` and `ReturnType<>` of every changed function give what they gave
-before, and runtime behaviour is unchanged.
+- `verify` accepts a `Uint8Array` signature. That is what `sign(..., 'raw')`
+  returns. Before, only a `string` compiled.
+- `importKey` and `exportKey` accept `jwk`. Both accepted it at run time, and
+  both document `raw|jwk`, but the type refused it.
+- `exportKey` gives one type for each format. It gives `Uint8Array<ArrayBuffer>`
+  for `raw`, `JsonWebKey` for `jwk`, and `ArrayBuffer` for the others. Before, it
+  gave one union for all formats.
+- Three calls compiled and then threw an error at run time. They are now compile
+  errors. These are a string signature with a `raw` format, a `JsonWebKey`
+  without `type: 'jwk'`, and `exportKey<'jwk'>` with no argument.
 
 ### Known limitation
 
 `sign`, `exportPublicKey` and `exportPrivateKey` type their `raw` result as a
-bare `Uint8Array`, meaning `Uint8Array<ArrayBufferLike>`, so it cannot go
-straight into a `BufferSource` parameter such as `crypto.subtle.digest`. Copy it
-with `new Uint8Array(result)` for now. This predates the changes above and is
-unchanged, so nothing that worked before is affected.
+bare `Uint8Array`. This means `Uint8Array<ArrayBufferLike>`. You cannot give that
+result to a `BufferSource` parameter such as `crypto.subtle.digest`. Copy it
+first:
 
-### Also in this release
+```js
+const signature = await WebCrypto.sign(privateKey, data, 'raw')
+await crypto.subtle.digest('SHA-256', new Uint8Array(signature))
+```
 
-Sources build to ESM, CJS and a browser bundle, each with its own declarations.
-Tests run under vitest in Node with no browser, and `src` has 100% line
-coverage. CI typechecks, builds and tests every push and pull request. `dist/`
-is no longer committed; a `prepare` script builds it for `npm publish` and for
-an install from the git url.
+This limitation is older than the changes above. It does not affect code that
+worked before.
+
+### Other changes
+
+The sources build to ESM, CJS and a browser bundle. Each one has its own
+declarations. The tests run under vitest in Node, so they need no browser. `src`
+has 100% line coverage. CI typechecks, builds and tests each push and each pull
+request. `dist/` is no longer in the repository. A `prepare` script builds it for
+`npm publish` and for an install from the git url.
 
 ## Installing
 
