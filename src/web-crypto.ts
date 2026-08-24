@@ -228,8 +228,9 @@ async function sign(key: CryptoKey, data: any, format: KeyBufferEncoding = 'base
  * @param {*} hash - The hashing algorithm
  * @returns {Promise<boolean>} - The verification outcome
  */
-function verify(key: CryptoKey, data: any, signature: string, format?: BufferEncoding, hash?: string): Promise<boolean>;
 function verify(key: CryptoKey, data: any, signature: Uint8Array, format?: KeyBufferEncoding, hash?: string): Promise<boolean>;
+// last, so Parameters<typeof verify> stays the tuple 1.4.0 published
+function verify(key: CryptoKey, data: any, signature: string, format?: BufferEncoding, hash?: string): Promise<boolean>;
 
 async function verify(key: CryptoKey, data: any, signature: string | Uint8Array, format: KeyBufferEncoding = 'base64', hash = 'SHA-256') {
   return globalThis.crypto.subtle.verify(
@@ -268,8 +269,9 @@ const genAESKey = (extractable = true, mode = 'AES-GCM', keySize = 128) => {
     * @param {string} [mode] - The mode of the key to import (default 'AES-GCM')
     * @returns {Promise<arrayBuffer>} - The cryptoKey
     */
-function importKey(key: ArrayBuffer | Uint8Array | Buffer, type?: 'pkcs8' | 'spki' | 'raw', mode?: string): Promise<CryptoKey>;
 function importKey(key: JsonWebKey, type: 'jwk', mode?: string): Promise<CryptoKey>;
+// last, so Parameters<typeof importKey> stays the tuple 1.4.0 published
+function importKey(key: ArrayBuffer | Uint8Array | Buffer, type?: 'pkcs8' | 'spki' | 'raw', mode?: string): Promise<CryptoKey>;
 
 function importKey(key: ArrayBuffer | Uint8Array | Buffer | JsonWebKey, type: KeyFormat = 'raw', mode = 'AES-GCM') {
   const parsedKey = (type === 'raw') ? Buffer.from(key as unknown as string, 'base64') : key
