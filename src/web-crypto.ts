@@ -102,7 +102,10 @@ type KeyBufferEncoding = BufferEncoding | 'raw';
 type SelectKeyType<TFormat extends KeyBufferEncoding> = TFormat extends 'raw' ? Uint8Array : string;
 // a distributive conditional, not overloads: a union argument keeps resolving
 // to the union return type it resolved to before
-type SelectExportedKey<TType extends KeyFormat> = TType extends 'raw' ? Uint8Array : TType extends 'jwk' ? JsonWebKey : ArrayBuffer;
+// the three formats that predate jwk, kept as their own type so the generic
+// overload instantiates at exactly the constraint it had before
+type KeyExportFormat = 'pkcs8' | 'spki' | 'raw';
+type SelectExportedKey<TType extends KeyExportFormat> = TType extends 'raw' ? Uint8Array<ArrayBuffer> : ArrayBuffer;
 
 /**
   * Import a public key
@@ -225,7 +228,10 @@ async function sign(key: CryptoKey, data: any, format: KeyBufferEncoding = 'base
  * @param {*} hash - The hashing algorithm
  * @returns {Promise<boolean>} - The verification outcome
  */
-const verify = async (key: CryptoKey, data: any, signature: string | Uint8Array, format: KeyBufferEncoding = 'base64', hash = 'SHA-256') => {
+function verify(key: CryptoKey, data: any, signature: string, format?: BufferEncoding, hash?: string): Promise<boolean>;
+function verify(key: CryptoKey, data: any, signature: Uint8Array, format?: KeyBufferEncoding, hash?: string): Promise<boolean>;
+
+async function verify(key: CryptoKey, data: any, signature: string | Uint8Array, format: KeyBufferEncoding = 'base64', hash = 'SHA-256') {
   return globalThis.crypto.subtle.verify(
     {
       name: 'ECDSA',
@@ -262,7 +268,10 @@ const genAESKey = (extractable = true, mode = 'AES-GCM', keySize = 128) => {
     * @param {string} [mode] - The mode of the key to import (default 'AES-GCM')
     * @returns {Promise<arrayBuffer>} - The cryptoKey
     */
-const importKey = (key: ArrayBuffer | Uint8Array | Buffer | JsonWebKey, type: KeyFormat = 'raw', mode = 'AES-GCM') => {
+function importKey(key: ArrayBuffer | Uint8Array | Buffer, type?: 'pkcs8' | 'spki' | 'raw', mode?: string): Promise<CryptoKey>;
+function importKey(key: JsonWebKey, type: 'jwk', mode?: string): Promise<CryptoKey>;
+
+function importKey(key: ArrayBuffer | Uint8Array | Buffer | JsonWebKey, type: KeyFormat = 'raw', mode = 'AES-GCM') {
   const parsedKey = (type === 'raw') ? Buffer.from(key as unknown as string, 'base64') : key
   return (type === 'jwk')
     ? globalThis.crypto.subtle.importKey('jwk', parsedKey as JsonWebKey, { name: mode }
@@ -278,9 +287,12 @@ const importKey = (key: ArrayBuffer | Uint8Array | Buffer | JsonWebKey, type: Ke
   * @param {string} [type] - The type of the exported key: raw|jwk
   * @returns {Promise<arrayBuffer>} - The raw key or the key as a jwk format
   */
-const exportKey = async <TType extends KeyFormat = 'raw'>(key: CryptoKey, type: TType = 'raw' as TType): Promise<SelectExportedKey<TType>> => {
+function exportKey(key: CryptoKey, type: 'jwk'): Promise<JsonWebKey>;
+function exportKey<TType extends KeyExportFormat = 'raw'>(key: CryptoKey, type?: TType): Promise<SelectExportedKey<TType>>;
+
+async function exportKey(key: CryptoKey, type: KeyFormat = 'raw') {
   const exportedKey = await globalThis.crypto.subtle.exportKey(type, key)
-  return ((type === 'raw') ? new Uint8Array(exportedKey as ArrayBuffer) : exportedKey) as SelectExportedKey<TType>
+  return (type === 'raw') ? new Uint8Array(exportedKey as ArrayBuffer) : exportedKey
 }
 
 /**
