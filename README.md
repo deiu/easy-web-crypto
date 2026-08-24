@@ -1,12 +1,70 @@
 # Easy-web-crypto
 
-[![Build Status](https://api.travis-ci.org/AKASHAorg/easy-web-crypto.svg?branch=master)](https://travis-ci.org/AKASHAorg/easy-web-crypto)
+[![CI](https://github.com/deiu/easy-web-crypto/actions/workflows/ci.yml/badge.svg)](https://github.com/deiu/easy-web-crypto/actions/workflows/ci.yml)
 
 This is a wrapper around the WebCrypto API available in modern browsers. It enables fast
 development of applications that require storing as well as signing and verifying data.
 It is well tested and it comes with no external dependencies.
 
 Huge thanks to @Jopie64 for Typescriptifying the source!
+
+## Upgrading from 1.4.0
+
+One change needs you to act. The rest is additive.
+
+### Breaking: the `<script>` tag bundle moved
+
+The build moved from webpack to tsup, and with it the browser bundle.
+`dist/cjs/web-crypto.js` used to be a UMD bundle that set a `WebCrypto` global.
+It is now plain CommonJS and fails in a `<script>` tag. The browser bundle is
+`dist/easy-web-crypto.global.js`, and it still sets `globalThis.WebCrypto`.
+
+```diff
+- <script src="https://cdn.jsdelivr.net/npm/easy-web-crypto/dist/cjs/web-crypto.js"></script>
++ <script src="https://cdn.jsdelivr.net/npm/easy-web-crypto/dist/easy-web-crypto.global.js"></script>
+```
+
+A page that pins a version keeps working. A page on a floating version needs
+the new path.
+
+Importing through npm is unaffected. `import`, `require` and the
+`easy-web-crypto/cjs/web-crypto` and `easy-web-crypto/esm/web-crypto` subpaths
+all still resolve.
+
+### Not breaking: the types accept more than they did
+
+The published types were narrower than the runtime, and the tests proved it.
+Code that compiled against 1.4.0 still compiles.
+
+- `verify` takes a `Uint8Array` signature, which is what `sign(..., 'raw')`
+  returns. Before, only a `string` typechecked.
+- `importKey` and `exportKey` take `'jwk'`. Both accepted it at runtime and both
+  document `raw|jwk`, but the type rejected it.
+- `exportKey` gives a precise type per format instead of one union for all of
+  them: `Uint8Array<ArrayBuffer>` for `raw`, `JsonWebKey` for `jwk`,
+  `ArrayBuffer` for the rest.
+- Three calls that used to typecheck and then throw are now compile errors: a
+  string signature with a `raw` format, a `JsonWebKey` without `type: 'jwk'`,
+  and `exportKey<'jwk'>` with the argument left out.
+
+`Parameters<>` and `ReturnType<>` of every changed function give what they gave
+before, and runtime behaviour is unchanged.
+
+### Known limitation
+
+`sign`, `exportPublicKey` and `exportPrivateKey` type their `raw` result as a
+bare `Uint8Array`, meaning `Uint8Array<ArrayBufferLike>`, so it cannot go
+straight into a `BufferSource` parameter such as `crypto.subtle.digest`. Copy it
+with `new Uint8Array(result)` for now. This predates the changes above and is
+unchanged, so nothing that worked before is affected.
+
+### Also in this release
+
+Sources build to ESM, CJS and a browser bundle, each with its own declarations.
+Tests run under vitest in Node with no browser, and `src` has 100% line
+coverage. CI typechecks, builds and tests every push and pull request. `dist/`
+is no longer committed; a `prepare` script builds it for `npm publish` and for
+an install from the git url.
 
 ## Installing
 
