@@ -7,7 +7,7 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 Releases made before this file existed are listed under
 [Releases](https://github.com/deiu/easy-web-crypto/releases).
 
-## [Unreleased]
+## [2.0.0] - 2026-08-30
 
 ### Added
 
@@ -80,3 +80,4 @@ passed.
 [#1]: https://github.com/deiu/easy-web-crypto/pull/1
 [#2]: https://github.com/deiu/easy-web-crypto/pull/2
 [#3]: https://github.com/deiu/easy-web-crypto/pull/3
+[2.0.0]: https://github.com/deiu/easy-web-crypto/releases/tag/2.0.0
